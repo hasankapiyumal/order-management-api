@@ -1,7 +1,7 @@
 package lk.bci.ordermanagementapi.dto.response;
 
 public record TagResponse(
-        int id,
+        Long id,
         String name
 ) {
 }

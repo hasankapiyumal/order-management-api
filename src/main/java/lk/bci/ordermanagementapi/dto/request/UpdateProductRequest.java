@@ -21,8 +21,8 @@ public record UpdateProductRequest(
 
         @NotNull(message = "Category ID is required")
         @Positive(message = "Category ID must be a positive number")
-        Integer categoryId,
+        Long categoryId,
 
-        Set<@NotNull(message = "Tag ID cannot be null") @Positive(message = "Tag ID must be a positive number") Integer> tagIds
+        Set<@NotNull(message = "Tag ID cannot be null") @Positive(message = "Tag ID must be a positive number") Long> tagIds
 ) {
 }

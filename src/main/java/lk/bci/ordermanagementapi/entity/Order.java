@@ -20,7 +20,7 @@ import java.util.List;
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Long id;
 
     // Removed cascade = CascadeType.ALL
     @ManyToOne(fetch = FetchType.LAZY)

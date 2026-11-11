@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 public record ProductResponse(
-        int id,
+        Long id,
         String name,
         BigDecimal price,
         int stock,
