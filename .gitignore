@@ -71,12 +71,19 @@ Thumbs.db
 *.env
 application-local.yml
 application-local.properties
+application-dev.properties
+application-dev.yml
+application-prod.properties
+application-prod.yml
 *.pem
 *.key
 *.p12
 *.jks
+.env.*
+secrets.yml
 
 # Local data / uploads
 *.db
 *.sqlite
 uploads/
+
