@@ -27,13 +27,27 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL) // Added cascade to manage profile
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // Added cascade to manage profile
     private UserProfile userProfile;
 
     // Fixed mappedBy to match the field name in Order.java
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Order> orders = new ArrayList<>(); // Renamed from 'order'
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+    }
+
+    public void setUserProfile(UserProfile userProfile) {
+        this.userProfile = userProfile;
+        if (userProfile != null && userProfile.getUser() != this) {
+            userProfile.setUser(this);
+        }
+    }
 }
