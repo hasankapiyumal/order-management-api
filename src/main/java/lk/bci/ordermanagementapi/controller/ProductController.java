@@ -5,6 +5,7 @@ import lk.bci.ordermanagementapi.config.RequestIdFilter;
 import lk.bci.ordermanagementapi.dto.request.AdjustStockRequest;
 import lk.bci.ordermanagementapi.dto.request.CreateProductRequest;
 import lk.bci.ordermanagementapi.dto.request.PatchProductRequest;
+import lk.bci.ordermanagementapi.dto.request.ProductFilterRequest;
 import lk.bci.ordermanagementapi.dto.request.UpdateProductRequest;
 import lk.bci.ordermanagementapi.dto.response.ProductResponse;
 import lk.bci.ordermanagementapi.service.ProductService;
@@ -18,6 +19,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,11 +27,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.math.BigDecimal;
 import java.net.URI;
 
 @Slf4j
@@ -43,33 +43,15 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<Page<ProductResponse>> getProducts(
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String categoryName,
-            @RequestParam(required = false) Long tagId,
-            @RequestParam(required = false, name = "tag") String tagName,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Boolean inStock,
+            @ModelAttribute ProductFilterRequest filter,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         bindRequestIdToMdc(requestId);
         log.debug(
-                "REST request to filter products: name={}, categoryId={}, categoryName={}, tagId={}, tag={}, minPrice={}, maxPrice={}, inStock={}, page={}, size={}",
-                name, categoryId, categoryName, tagId, tagName, minPrice, maxPrice, inStock,
-                pageable.getPageNumber(), pageable.getPageSize()
+                "REST request to filter products: filter={}, page={}, size={}",
+                filter, pageable.getPageNumber(), pageable.getPageSize()
         );
-        Page<ProductResponse> products = productService.getProducts(
-                name,
-                categoryId,
-                categoryName,
-                tagId,
-                tagName,
-                minPrice,
-                maxPrice,
-                inStock,
-                pageable
-        );
+        Page<ProductResponse> products = productService.getProducts(filter, pageable);
         return ResponseEntity.ok(products);
     }
 

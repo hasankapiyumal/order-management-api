@@ -2,6 +2,7 @@ package lk.bci.ordermanagementapi.service;
 
 import lk.bci.ordermanagementapi.config.OrderProperties;
 import lk.bci.ordermanagementapi.dto.request.CreateOrderRequest;
+import lk.bci.ordermanagementapi.dto.request.OrderFilterRequest;
 import lk.bci.ordermanagementapi.dto.request.OrderItemRequest;
 import lk.bci.ordermanagementapi.dto.request.UpdateOrderStatusRequest;
 import lk.bci.ordermanagementapi.dto.response.OrderResponse;
@@ -15,12 +16,15 @@ import lk.bci.ordermanagementapi.exception.OrderStateConflictException;
 import lk.bci.ordermanagementapi.exception.ResourceNotFoundException;
 import lk.bci.ordermanagementapi.mapper.OrderMapper;
 import lk.bci.ordermanagementapi.repository.OrderRepository;
+import lk.bci.ordermanagementapi.repository.OrderSpecification;
 import lk.bci.ordermanagementapi.repository.ProductRepository;
 import lk.bci.ordermanagementapi.repository.UserServiceRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -118,10 +122,19 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> getAllOrders(Pageable pageable) {
-        log.debug("Fetching paged orders: page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
-        return orderRepository.findAll(pageable)
+    public Page<OrderResponse> getAllOrders(OrderFilterRequest filter, Pageable pageable) {
+        log.debug(
+                "Fetching paged orders with filter={}: page={}, size={}",
+                filter, pageable.getPageNumber(), pageable.getPageSize()
+        );
+        Specification<Order> spec = OrderSpecification.build(filter);
+        return orderRepository.findAll(spec, pageable)
                 .map(orderMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getAllOrders(Pageable pageable) {
+        return getAllOrders(null, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -136,17 +149,25 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> getOrdersByUserId(Long userId) {
-        log.debug("Fetching orders for userId={}", userId);
+    public List<OrderResponse> getOrdersByUserId(Long userId, OrderFilterRequest filter) {
+        log.debug("Fetching orders for userId={} with filter={}", userId, filter);
         if (!userServiceRepo.existsById(userId)) {
             log.warn("Cannot fetch orders: user not found with id={}", userId);
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
 
-        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId)
+        Specification<Order> spec = OrderSpecification.build(filter)
+                .and(OrderSpecification.hasUserId(userId));
+
+        return orderRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
                 .map(orderMapper::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getOrdersByUserId(Long userId) {
+        return getOrdersByUserId(userId, null);
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import lk.bci.ordermanagementapi.config.RequestIdFilter;
 import lk.bci.ordermanagementapi.dto.request.CreateUserRequest;
 import lk.bci.ordermanagementapi.dto.request.PatchUserRequest;
 import lk.bci.ordermanagementapi.dto.request.UpdateUserRequest;
+import lk.bci.ordermanagementapi.dto.request.UserFilterRequest;
 import lk.bci.ordermanagementapi.dto.response.UserResponse;
 import lk.bci.ordermanagementapi.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,11 +57,15 @@ public class UserController {
     @GetMapping
     public ResponseEntity<Page<UserResponse>> getAllUsers(
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+            @ModelAttribute UserFilterRequest filter,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         bindRequestIdToMdc(requestId);
-        log.debug("REST request to get users page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
-        return ResponseEntity.ok(userService.getAllUsers(pageable));
+        log.debug(
+                "REST request to filter users: filter={}, page={}, size={}",
+                filter, pageable.getPageNumber(), pageable.getPageSize()
+        );
+        return ResponseEntity.ok(userService.getAllUsers(filter, pageable));
     }
 
     @GetMapping("/{id}")

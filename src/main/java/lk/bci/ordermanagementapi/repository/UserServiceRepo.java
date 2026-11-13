@@ -1,16 +1,33 @@
 package lk.bci.ordermanagementapi.repository;
 
 import lk.bci.ordermanagementapi.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface UserServiceRepo extends JpaRepository<User, Long> {
+public interface UserServiceRepo extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     boolean existsByEmail(String email);
 
     boolean existsByEmailAndIdNot(String email, Long id);
 
     Optional<User> findByEmail(String email);
+
+    @Override
+    @EntityGraph(attributePaths = {"userProfile"})
+    Page<User> findAll(Specification<User> spec, Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"userProfile"})
+    Page<User> findAll(Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"userProfile"})
+    Optional<User> findById(Long id);
 }

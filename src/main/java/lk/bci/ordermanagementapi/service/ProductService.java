@@ -3,6 +3,7 @@ package lk.bci.ordermanagementapi.service;
 import lk.bci.ordermanagementapi.dto.request.AdjustStockRequest;
 import lk.bci.ordermanagementapi.dto.request.CreateProductRequest;
 import lk.bci.ordermanagementapi.dto.request.PatchProductRequest;
+import lk.bci.ordermanagementapi.dto.request.ProductFilterRequest;
 import lk.bci.ordermanagementapi.dto.request.UpdateProductRequest;
 import lk.bci.ordermanagementapi.dto.response.ProductResponse;
 import lk.bci.ordermanagementapi.entity.Category;
@@ -39,6 +40,14 @@ public class ProductService {
     private final ProductMapper productMapper;
 
     @Transactional(readOnly = true)
+    public Page<ProductResponse> getProducts(ProductFilterRequest filter, Pageable pageable) {
+        log.debug("Querying products with filter={}, page={}, size={}", filter, pageable.getPageNumber(), pageable.getPageSize());
+        Specification<Product> spec = ProductSpecification.build(filter);
+        return productRepository.findAll(spec, pageable)
+                .map(productMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(
             String name,
             Long categoryId,
@@ -50,23 +59,10 @@ public class ProductService {
             Boolean inStock,
             Pageable pageable
     ) {
-        log.debug(
-                "Querying products with filters: name={}, categoryId={}, categoryName={}, tagId={}, tagName={}, minPrice={}, maxPrice={}, inStock={}",
-                name, categoryId, categoryName, tagId, tagName, minPrice, maxPrice, inStock
+        return getProducts(
+                new ProductFilterRequest(name, categoryId, categoryName, tagId, tagName, minPrice, maxPrice, inStock),
+                pageable
         );
-        Specification<Product> spec = ProductSpecification.filterProducts(
-                name,
-                categoryId,
-                categoryName,
-                tagId,
-                tagName,
-                minPrice,
-                maxPrice,
-                inStock
-        );
-
-        return productRepository.findAll(spec, pageable)
-                .map(productMapper::toResponse);
     }
 
     @Transactional(readOnly = true)

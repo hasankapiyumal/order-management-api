@@ -3,6 +3,7 @@ package lk.bci.ordermanagementapi.controller;
 import jakarta.validation.Valid;
 import lk.bci.ordermanagementapi.config.RequestIdFilter;
 import lk.bci.ordermanagementapi.dto.request.CreateOrderRequest;
+import lk.bci.ordermanagementapi.dto.request.OrderFilterRequest;
 import lk.bci.ordermanagementapi.dto.request.UpdateOrderStatusRequest;
 import lk.bci.ordermanagementapi.dto.response.OrderResponse;
 import lk.bci.ordermanagementapi.service.OrderService;
@@ -15,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,11 +53,15 @@ public class OrderController {
     @GetMapping({"/api/orders", "/api/v1/orders"})
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+            @ModelAttribute OrderFilterRequest filter,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         bindRequestIdToMdc(requestId);
-        log.debug("REST request to get orders page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
-        return ResponseEntity.ok(orderService.getAllOrders(pageable));
+        log.debug(
+                "REST request to filter orders: filter={}, page={}, size={}",
+                filter, pageable.getPageNumber(), pageable.getPageSize()
+        );
+        return ResponseEntity.ok(orderService.getAllOrders(filter, pageable));
     }
 
     @GetMapping({"/api/orders/{id}", "/api/v1/orders/{id}"})
@@ -71,11 +77,12 @@ public class OrderController {
     @GetMapping({"/api/users/{userId}/orders", "/api/v1/users/{userId}/orders"})
     public ResponseEntity<List<OrderResponse>> getOrdersByUserId(
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @PathVariable Long userId
+            @PathVariable Long userId,
+            @ModelAttribute OrderFilterRequest filter
     ) {
         bindRequestIdToMdc(requestId);
-        log.debug("REST request to get orders for userId={}", userId);
-        return ResponseEntity.ok(orderService.getOrdersByUserId(userId));
+        log.debug("REST request to get orders for userId={} with filter={}", userId, filter);
+        return ResponseEntity.ok(orderService.getOrdersByUserId(userId, filter));
     }
 
     @PatchMapping({"/api/orders/{id}", "/api/v1/orders/{id}"})

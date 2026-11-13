@@ -2,18 +2,32 @@ package lk.bci.ordermanagementapi.repository;
 
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
+import lk.bci.ordermanagementapi.dto.request.ProductFilterRequest;
 import lk.bci.ordermanagementapi.entity.Product;
 import lk.bci.ordermanagementapi.entity.Tag;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class ProductSpecification {
 
     private ProductSpecification() {
+    }
+
+    public static Specification<Product> build(ProductFilterRequest filter) {
+        if (filter == null) {
+            return (root, query, cb) -> cb.conjunction();
+        }
+        return filterProducts(
+                filter.name(),
+                filter.categoryId(),
+                filter.categoryName(),
+                filter.tagId(),
+                filter.tag(),
+                filter.minPrice(),
+                filter.maxPrice(),
+                filter.inStock()
+        );
     }
 
     public static Specification<Product> filterProducts(
@@ -26,57 +40,95 @@ public final class ProductSpecification {
             BigDecimal maxPrice,
             Boolean inStock
     ) {
+        return Specification.where(nameContains(name))
+                .and(hasCategoryId(categoryId))
+                .and(hasCategoryName(categoryName))
+                .and(hasTagId(tagId))
+                .and(hasTagName(tagName))
+                .and(minPrice(minPrice))
+                .and(maxPrice(maxPrice))
+                .and(isInStock(inStock));
+    }
+
+    public static Specification<Product> nameContains(String name) {
         return (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (name != null && !name.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.trim().toLowerCase() + "%"));
+            if (name == null || name.isBlank()) {
+                return cb.conjunction();
             }
+            return cb.like(cb.lower(root.get("name")), "%" + name.trim().toLowerCase() + "%");
+        };
+    }
 
-            if (categoryId != null) {
-                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+    public static Specification<Product> hasCategoryId(Long categoryId) {
+        return (root, query, cb) -> {
+            if (categoryId == null) {
+                return cb.conjunction();
             }
+            return cb.equal(root.get("category").get("id"), categoryId);
+        };
+    }
 
-            if (categoryName != null && !categoryName.isBlank()) {
-                predicates.add(cb.equal(
-                        cb.lower(root.get("category").get("name")),
-                        categoryName.trim().toLowerCase()
-                ));
+    public static Specification<Product> hasCategoryName(String categoryName) {
+        return (root, query, cb) -> {
+            if (categoryName == null || categoryName.isBlank()) {
+                return cb.conjunction();
             }
+            return cb.equal(cb.lower(root.get("category").get("name")), categoryName.trim().toLowerCase());
+        };
+    }
 
-            if (tagId != null) {
-                Join<Product, Tag> tagJoin = root.join("tags", JoinType.INNER);
-                predicates.add(cb.equal(tagJoin.get("id"), tagId));
-                if (query != null) {
-                    query.distinct(true);
-                }
+    public static Specification<Product> hasTagId(Long tagId) {
+        return (root, query, cb) -> {
+            if (tagId == null) {
+                return cb.conjunction();
             }
-
-            if (tagName != null && !tagName.isBlank()) {
-                Join<Product, Tag> tagJoin = root.join("tags", JoinType.INNER);
-                predicates.add(cb.equal(cb.lower(tagJoin.get("name")), tagName.trim().toLowerCase()));
-                if (query != null) {
-                    query.distinct(true);
-                }
+            if (query != null) {
+                query.distinct(true);
             }
+            Join<Product, Tag> tagJoin = root.join("tags", JoinType.INNER);
+            return cb.equal(tagJoin.get("id"), tagId);
+        };
+    }
 
-            if (minPrice != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("price"), minPrice));
+    public static Specification<Product> hasTagName(String tagName) {
+        return (root, query, cb) -> {
+            if (tagName == null || tagName.isBlank()) {
+                return cb.conjunction();
             }
-
-            if (maxPrice != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("price"), maxPrice));
+            if (query != null) {
+                query.distinct(true);
             }
+            Join<Product, Tag> tagJoin = root.join("tags", JoinType.INNER);
+            return cb.equal(cb.lower(tagJoin.get("name")), tagName.trim().toLowerCase());
+        };
+    }
 
-            if (inStock != null) {
-                if (inStock) {
-                    predicates.add(cb.greaterThan(root.get("stock"), 0));
-                } else {
-                    predicates.add(cb.lessThanOrEqualTo(root.get("stock"), 0));
-                }
+    public static Specification<Product> minPrice(BigDecimal minPrice) {
+        return (root, query, cb) -> {
+            if (minPrice == null) {
+                return cb.conjunction();
             }
+            return cb.greaterThanOrEqualTo(root.get("price"), minPrice);
+        };
+    }
 
-            return cb.and(predicates.toArray(new Predicate[0]));
+    public static Specification<Product> maxPrice(BigDecimal maxPrice) {
+        return (root, query, cb) -> {
+            if (maxPrice == null) {
+                return cb.conjunction();
+            }
+            return cb.lessThanOrEqualTo(root.get("price"), maxPrice);
+        };
+    }
+
+    public static Specification<Product> isInStock(Boolean inStock) {
+        return (root, query, cb) -> {
+            if (inStock == null) {
+                return cb.conjunction();
+            }
+            return inStock
+                    ? cb.greaterThan(root.get("stock"), 0)
+                    : cb.lessThanOrEqualTo(root.get("stock"), 0);
         };
     }
 }
