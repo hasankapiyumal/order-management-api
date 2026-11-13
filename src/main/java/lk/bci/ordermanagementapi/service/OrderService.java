@@ -3,6 +3,7 @@ package lk.bci.ordermanagementapi.service;
 import lk.bci.ordermanagementapi.config.OrderProperties;
 import lk.bci.ordermanagementapi.dto.request.CreateOrderRequest;
 import lk.bci.ordermanagementapi.dto.request.OrderItemRequest;
+import lk.bci.ordermanagementapi.dto.request.UpdateOrderStatusRequest;
 import lk.bci.ordermanagementapi.dto.response.OrderResponse;
 import lk.bci.ordermanagementapi.entity.Order;
 import lk.bci.ordermanagementapi.entity.OrderItem;
@@ -17,6 +18,9 @@ import lk.bci.ordermanagementapi.repository.OrderRepository;
 import lk.bci.ordermanagementapi.repository.ProductRepository;
 import lk.bci.ordermanagementapi.repository.UserServiceRepo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +29,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -37,14 +42,23 @@ public class OrderService {
 
     @Transactional
     public OrderResponse placeOrder(CreateOrderRequest request) {
+        log.debug("Placing order for userId={} with {} items", request.userId(), request.items().size());
+
         if (request.items().size() > orderProperties.getMaxItemsPerOrder()) {
+            log.warn(
+                    "Order rejected for userId={}: itemCount={} exceeds maxItemsPerOrder={}",
+                    request.userId(), request.items().size(), orderProperties.getMaxItemsPerOrder()
+            );
             throw new IllegalArgumentException(
                     "Order cannot contain more than " + orderProperties.getMaxItemsPerOrder() + " items"
             );
         }
 
         User user = userServiceRepo.findById(request.userId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + request.userId()));
+                .orElseThrow(() -> {
+                    log.warn("Order placement failed: user not found with id={}", request.userId());
+                    return new ResourceNotFoundException("User not found with id: " + request.userId());
+                });
 
         Order order = new Order();
         order.setUser(user);
@@ -55,18 +69,27 @@ public class OrderService {
 
         for (OrderItemRequest itemRequest : request.items()) {
             Product product = productRepository.findById(itemRequest.productId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Product not found with id: " + itemRequest.productId()
-                    ));
+                    .orElseThrow(() -> {
+                        log.warn("Order placement failed: product not found with id={}", itemRequest.productId());
+                        return new ResourceNotFoundException(
+                                "Product not found with id: " + itemRequest.productId()
+                        );
+                    });
 
             if (product.getStock() < itemRequest.quantity()) {
+                log.warn(
+                        "Order placement failed: insufficient stock for productId={}, available={}, requested={}",
+                        product.getId(), product.getStock(), itemRequest.quantity()
+                );
                 throw new InsufficientStockException(
                         "Insufficient stock for product '" + product.getName() + "' (id: " + product.getId()
                                 + "). Available: " + product.getStock() + ", requested: " + itemRequest.quantity()
                 );
             }
 
-            product.setStock(product.getStock() - itemRequest.quantity());
+            int updatedStock = product.getStock() - itemRequest.quantity();
+            product.setStock(updatedStock);
+            log.debug("Deducted stock for productId={}: remainingStock={}", product.getId(), updatedStock);
 
             OrderItem orderItem = new OrderItem();
             orderItem.setProduct(product);
@@ -87,19 +110,36 @@ public class OrderService {
         order.setTotalAmount(totalWithTax);
 
         Order savedOrder = orderRepository.saveAndFlush(order);
+        log.info(
+                "Successfully placed order id={} for userId={}, status={}, totalAmount={}",
+                savedOrder.getId(), user.getId(), savedOrder.getStatus(), savedOrder.getTotalAmount()
+        );
         return orderMapper.toResponse(savedOrder);
     }
 
     @Transactional(readOnly = true)
+    public Page<OrderResponse> getAllOrders(Pageable pageable) {
+        log.debug("Fetching paged orders: page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
+        return orderRepository.findAll(pageable)
+                .map(orderMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
+        log.debug("Fetching order by id={}", id);
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.warn("Order not found with id={}", id);
+                    return new ResourceNotFoundException("Order not found with id: " + id);
+                });
         return orderMapper.toResponse(order);
     }
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByUserId(Long userId) {
+        log.debug("Fetching orders for userId={}", userId);
         if (!userServiceRepo.existsById(userId)) {
+            log.warn("Cannot fetch orders: user not found with id={}", userId);
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
 
@@ -110,21 +150,55 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrder(Long id) {
+    public OrderResponse patchOrderStatus(Long id, UpdateOrderStatusRequest request) {
+        if (request.status() == OrderStatus.CANCELLED) {
+            return cancelOrder(id);
+        }
+
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.warn("Order not found with id={}", id);
+                    return new ResourceNotFoundException("Order not found with id: " + id);
+                });
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("Cannot update status of already cancelled order id={}", id);
+            throw new OrderStateConflictException("Cannot change status of a cancelled order (id: " + id + ")");
+        }
+
+        OrderStatus previousStatus = order.getStatus();
+        order.setStatus(request.status());
+        Order savedOrder = orderRepository.saveAndFlush(order);
+        log.info("Updated status for order id={}: {} -> {}", id, previousStatus, savedOrder.getStatus());
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Transactional
+    public OrderResponse cancelOrder(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Cannot cancel order: order not found with id={}", id);
+                    return new ResourceNotFoundException("Order not found with id: " + id);
+                });
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("Order cancellation conflict: order id={} is already cancelled", id);
             throw new OrderStateConflictException("Order with id " + id + " is already cancelled");
         }
 
         for (OrderItem item : order.getOrderItems()) {
             Product product = item.getProduct();
-            product.setStock(product.getStock() + item.getQuantity());
+            int restoredStock = product.getStock() + item.getQuantity();
+            product.setStock(restoredStock);
+            log.debug(
+                    "Restocked productId={} by quantity={}: newStock={}",
+                    product.getId(), item.getQuantity(), restoredStock
+            );
         }
 
         order.setStatus(OrderStatus.CANCELLED);
         Order savedOrder = orderRepository.saveAndFlush(order);
+        log.info("Successfully cancelled order id={} and restocked {} items", id, order.getOrderItems().size());
         return orderMapper.toResponse(savedOrder);
     }
 }
