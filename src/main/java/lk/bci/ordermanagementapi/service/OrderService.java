@@ -36,6 +36,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -44,7 +45,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final OrderProperties orderProperties;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OrderResponse placeOrder(CreateOrderRequest request) {
         log.debug("Placing order for userId={} with {} items", request.userId(), request.items().size());
 
@@ -121,7 +122,6 @@ public class OrderService {
         return orderMapper.toResponse(savedOrder);
     }
 
-    @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderFilterRequest filter, Pageable pageable) {
         log.debug(
                 "Fetching paged orders with filter={}: page={}, size={}",
@@ -132,12 +132,10 @@ public class OrderService {
                 .map(orderMapper::toResponse);
     }
 
-    @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(Pageable pageable) {
         return getAllOrders(null, pageable);
     }
 
-    @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
         log.debug("Fetching order by id={}", id);
         Order order = orderRepository.findById(id)
@@ -148,7 +146,6 @@ public class OrderService {
         return orderMapper.toResponse(order);
     }
 
-    @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByUserId(Long userId, OrderFilterRequest filter) {
         log.debug("Fetching orders for userId={} with filter={}", userId, filter);
         if (!userServiceRepo.existsById(userId)) {
@@ -165,12 +162,11 @@ public class OrderService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByUserId(Long userId) {
         return getOrdersByUserId(userId, null);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OrderResponse patchOrderStatus(Long id, UpdateOrderStatusRequest request) {
         if (request.status() == OrderStatus.CANCELLED) {
             return cancelOrder(id);
@@ -194,7 +190,7 @@ public class OrderService {
         return orderMapper.toResponse(savedOrder);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OrderResponse cancelOrder(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> {

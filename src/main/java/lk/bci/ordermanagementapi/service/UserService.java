@@ -22,12 +22,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserService {
 
     private final UserServiceRepo userServiceRepo;
     private final UserMapper userMapper;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse createUser(CreateUserRequest createUserRequest) {
         String normalizedEmail = createUserRequest.email().trim().toLowerCase();
         log.debug("Creating user with normalizedEmail={}", normalizedEmail);
@@ -46,7 +47,6 @@ public class UserService {
         return userMapper.toResponse(savedUser);
     }
 
-    @Transactional(readOnly = true)
     public Page<UserResponse> getAllUsers(UserFilterRequest filter, Pageable pageable) {
         log.debug(
                 "Fetching paged users with filter={}: page={}, size={}",
@@ -57,19 +57,17 @@ public class UserService {
                 .map(userMapper::toResponse);
     }
 
-    @Transactional(readOnly = true)
     public Page<UserResponse> getAllUsers(Pageable pageable) {
         return getAllUsers(null, pageable);
     }
 
-    @Transactional(readOnly = true)
     public UserResponse getUserById(Long id) {
         log.debug("Fetching user by id={}", id);
         User user = findUserOrThrow(id);
         return userMapper.toResponse(user);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse replaceUser(Long id, UpdateUserRequest updateUserRequest) {
         User user = findUserOrThrow(id);
         String normalizedEmail = updateUserRequest.email().trim().toLowerCase();
@@ -88,7 +86,7 @@ public class UserService {
         return userMapper.toResponse(savedUser);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResponse patchUser(Long id, PatchUserRequest patchUserRequest) {
         User user = findUserOrThrow(id);
 
@@ -114,7 +112,7 @@ public class UserService {
         return userMapper.toResponse(savedUser);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long id) {
         User user = findUserOrThrow(id);
         userServiceRepo.delete(user);

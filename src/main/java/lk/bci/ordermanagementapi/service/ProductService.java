@@ -32,6 +32,7 @@ import java.util.Set;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -39,7 +40,6 @@ public class ProductService {
     private final TagRepository tagRepository;
     private final ProductMapper productMapper;
 
-    @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(ProductFilterRequest filter, Pageable pageable) {
         log.debug("Querying products with filter={}, page={}, size={}", filter, pageable.getPageNumber(), pageable.getPageSize());
         Specification<Product> spec = ProductSpecification.build(filter);
@@ -47,7 +47,6 @@ public class ProductService {
                 .map(productMapper::toResponse);
     }
 
-    @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(
             String name,
             Long categoryId,
@@ -65,14 +64,13 @@ public class ProductService {
         );
     }
 
-    @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
         log.debug("Fetching product by id={}", id);
         Product product = findProductOrThrow(id);
         return productMapper.toResponse(product);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse createProduct(CreateProductRequest request) {
         Category category = resolveCategory(request.categoryId());
         Set<Tag> tags = resolveTags(request.tagIds());
@@ -88,7 +86,7 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse replaceProduct(Long id, UpdateProductRequest request) {
         Product product = findProductOrThrow(id);
         Category category = resolveCategory(request.categoryId());
@@ -102,7 +100,7 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse patchProduct(Long id, PatchProductRequest request) {
         Product product = findProductOrThrow(id);
 
@@ -122,7 +120,7 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ProductResponse adjustStock(Long id, AdjustStockRequest request) {
         Product product = findProductOrThrow(id);
         int previousStock = product.getStock();
@@ -159,7 +157,7 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteProduct(Long id) {
         Product product = findProductOrThrow(id);
         productRepository.delete(product);
